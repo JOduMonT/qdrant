@@ -8,6 +8,39 @@ services:
       - qdrant-data:/qdrant/storage
     networks:
       - coolify
+    # Security hardening (OWASP Docker Security Cheat Sheet). Every value here was verified
+    # against a real throwaway container before landing, not guessed:
+    # - read_only + explicit tmpfs: qdrant needs /tmp and its own ./snapshots/tmp writable
+    #   (confirmed by testing — it panics without the second one specifically), everything
+    #   else stays read-only. Do NOT tmpfs /qdrant itself: that shadows the image's own
+    #   baked-in entrypoint.sh and the container fails to start at all.
+    # - cap_drop: ALL: qdrant's own process runs as root by default but needs no special
+    #   Linux capabilities to serve traffic or write to its volume/tmpfs — confirmed by a
+    #   real write (collection create) succeeding with every capability dropped.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /qdrant/snapshots
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 200
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      # No curl/wget in this image — bash's /dev/tcp is what's actually available, verified
+      # working against the real /healthz endpoint.
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/6333 && printf \"GET /healthz HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3 && head -1 <&3 | grep -q 200'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   qdrant-data:

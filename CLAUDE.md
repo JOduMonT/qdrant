@@ -10,7 +10,7 @@ must **never** get a public domain or a published host port — same convention 
 fleet's shared Postgres. When creating the Coolify application, explicitly suppress the
 auto-assigned domain: `PATCH /applications/<uuid>` with
 `{"docker_compose_domains": [{"name":"qdrant","domain":""}]}` — Coolify assigns a random
-public `<uuid>.jdmnt.co` hostname by default if you don't.
+public `<uuid>.<your-domain>` hostname by default if you don't.
 
 ## No consumer yet
 

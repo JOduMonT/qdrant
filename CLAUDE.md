@@ -27,6 +27,27 @@ Renovate open the PR. Same "always latest stable, alpine when available" policy 
 of this fleet applies, though Qdrant doesn't ship an alpine variant — its default image is
 what's used.
 
+## Security hardening
+
+Both compose files carry a hardening block per the
+[OWASP Docker Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html):
+healthcheck, log rotation, `cap_drop: ALL`, `no-new-privileges`, resource limits, and a
+read-only root filesystem. Validated against a real container (including a real
+collection-create write) before landing on the live instance.
+
+**Two `tmpfs` mounts are required under `read_only: true`, not one.** `/tmp` alone isn't
+enough — Qdrant also needs its own `./snapshots/tmp` (relative to `/qdrant`, so
+`/qdrant/snapshots` as an absolute path) writable, or it panics on startup:
+`Failed to create snapshots temp directory`.
+
+**Never `tmpfs` `/qdrant` itself.** That shadows the image's own baked-in `entrypoint.sh`
+(which lives at that path) and the container fails to start at all — a different, more
+confusing failure than the snapshots one above. Mount only the specific subdirectories that
+need to be writable, not the parent.
+
+No healthcheck tooling (`curl`/`wget`) ships in this image — the healthcheck uses bash's
+`/dev/tcp` instead, confirmed working against the real `/healthz` endpoint.
+
 ## Access control
 
 `QDRANT__SERVICE__API_KEY` is optional (defaults to empty via `${QDRANT_API_KEY:-}`), unlike
